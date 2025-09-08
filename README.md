@@ -6,4 +6,6 @@ this code was built onto top of https://github.com/joe817/HGCN-name-disambiguati
 
 
 ## Details
-Details can be found in my final research presentation: https://docs.google.com/presentation/d/1n1HvzagIfoKO12opufn3tqVn2LCsfqDF19bq9KE3eqo/edit?usp=sharing
+Details can be found in my final research presentation and paper: https://docs.google.com/presentation/d/1n1HvzagIfoKO12opufn3tqVn2LCsfqDF19bq9KE3eqo/edit?usp=sharing
+https://docs.google.com/document/d/1NFZcV08ngSN2mJZN4UBmmWfBFaOn8opCxWywhtyNyzk/edit?tab=t.0#heading=h.3xc35ipxjts1
+
