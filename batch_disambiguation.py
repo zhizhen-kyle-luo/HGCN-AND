@@ -8,7 +8,7 @@ from tqdm import tqdm
 import time
 import logging
 
-# Setup logging
+# setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger('batch_disambiguation')
 
 def run_command(cmd, verbose=False):
-    """Run a shell command and return the output."""
+    # run a shell command and return the output
     if verbose:
         logger.info(f"Running command: {cmd}")
     
@@ -36,12 +36,12 @@ def run_command(cmd, verbose=False):
     return True, result.stdout
 
 def process_single_name(name, max_authors=30, max_works=100, verbose=False):
-    """Process a single name through the entire disambiguation workflow."""
+    # process a single name through the entire disambiguation workflow
     logger.info(f"Processing name: {name}")
     
-    # Step 1: Fetch author data from OpenAlex and create HGCN input files
-    # Ensure name is quoted properly for the command line
-    quoted_name = json.dumps(name) # Use json.dumps for robust quoting
+    # step 1: fetch author data from openalex and create hgcn input files
+    # ensure name is quoted properly for the command line
+    quoted_name = json.dumps(name) # use json.dumps for robust quoting
     cmd_fetch = f"python openAlex_to_HGCN.py --name {quoted_name} --max_authors {max_authors} --max_works {max_works}"
     success_fetch, output_fetch = run_command(cmd_fetch, verbose)
     
@@ -49,8 +49,8 @@ def process_single_name(name, max_authors=30, max_works=100, verbose=False):
         logger.error(f"Failed to fetch data for {name}: {output_fetch}")
         return False
     
-    # Step 2: Run the name disambiguation in OpenAlex mode
-    # Call name_disambiguation.py directly with --openAlex flag
+    # step 2: run the name disambiguation in openalex mode
+    # call name_disambiguation.py directly with --openalex flag
     cmd_disambiguate = f"python name_disambiguation.py --openAlex --name {quoted_name}"
     success_disambiguate, output_disambiguate = run_command(cmd_disambiguate, verbose)
     
@@ -58,25 +58,24 @@ def process_single_name(name, max_authors=30, max_works=100, verbose=False):
         logger.error(f"Failed to run disambiguation for {name}: {output_disambiguate}")
         return False
     else:
-        # --- Print final JSON output from captured stdout ---
+        # print final json output from captured stdout
         try:
             json_header = f"\n{name} OpenAlex author ID clusters:"
             start_index = output_disambiguate.find(json_header)
             if start_index != -1:
-                # Print the header and the JSON that follows it
+                # print the header and the json that follows it
                 print(output_disambiguate[start_index:].strip())
             else:
-                # Log if the expected header wasn't found, but command succeeded
+                # log if the expected header wasn't found, but command succeeded
                 logger.warning(f"Could not find final JSON output in stdout for {name}. Command output was:\n{output_disambiguate}")
         except Exception as e:
             logger.error(f"Error extracting JSON output for {name}: {e}")
-        # --- End of print logic ---
 
     logger.info(f"Successfully processed {name}")
     return True
 
 def process_from_file(filename, max_authors=30, max_works=100, verbose=False):
-    """Process names from a text file."""
+    # process names from a text file
     if not os.path.exists(filename):
         logger.error(f"File not found: {filename}")
         return False
@@ -97,14 +96,14 @@ def process_from_file(filename, max_authors=30, max_works=100, verbose=False):
             if result:
                 success_count += 1
             pbar.update(1)
-            # Add a small delay to avoid overwhelming the API
+            # add a small delay to avoid overwhelming the api
             time.sleep(1)
     
     logger.info(f"Completed processing {len(names)} names. {success_count} successful, {len(names) - success_count} failed.")
     return success_count > 0
 
 def process_from_json(json_file, name_field, max_authors=30, max_works=100, verbose=False):
-    """Process names from a JSON file."""
+    # process names from a json file
     if not os.path.exists(json_file):
         logger.error(f"JSON file not found: {json_file}")
         return False
@@ -116,7 +115,7 @@ def process_from_json(json_file, name_field, max_authors=30, max_works=100, verb
         logger.error(f"Error reading JSON file {json_file}: {e}")
         return False
     
-    # Extract names from JSON data
+    # extract names from json data
     names = []
     if isinstance(data, list):
         for item in data:
@@ -144,27 +143,27 @@ def process_from_json(json_file, name_field, max_authors=30, max_works=100, verb
             if result:
                 success_count += 1
             pbar.update(1)
-            # Add a small delay to avoid overwhelming the API
+            # add a small delay to avoid overwhelming the api
             time.sleep(1)
     
     logger.info(f"Completed processing {len(names)} names. {success_count} successful, {len(names) - success_count} failed.")
     return success_count > 0
 
 def process_existing_openAlex_data(directory='openAlex_scraper', max_authors=30, max_works=100, verbose=False):
-    """Process existing data from the OpenAlex scraper directory."""
+    # process existing data from the openalex scraper directory
     if not os.path.exists(directory):
         logger.error(f"Directory not found: {directory}")
         return False
     
-    # Try to find existing data sources
+    # try to find existing data sources
     sources = []
     
-    # Check for the JSON data file
+    # check for the json data file
     json_file = os.path.join(directory, 'asci_aap_dataJSON.json')
     if os.path.exists(json_file):
         sources.append(('json', json_file))
     
-    # Check for OpenAlex IDs
+    # check for openalex ids
     ids_file = os.path.join(directory, 'openAlex_ids.json')
     if os.path.exists(ids_file):
         sources.append(('ids', ids_file))
@@ -173,20 +172,20 @@ def process_existing_openAlex_data(directory='openAlex_scraper', max_authors=30,
         logger.error(f"No usable data sources found in {directory}")
         return False
     
-    # Process each source
+    # process each source
     for source_type, source_path in sources:
         logger.info(f"Processing source: {source_path}")
         
         if source_type == 'json':
-            # Try to identify the name field by examining the file
+            # try to identify the name field by examining the file
             try:
                 with open(source_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
-                # Check if it's a list of items
+                # check if it's a list of items
                 if isinstance(data, list) and len(data) > 0:
                     sample = data[0]
-                    # Look for common name fields
+                    # look for common name fields
                     for field in ['name', 'author_name', 'display_name', 'full_name']:
                         if isinstance(sample, dict) and field in sample:
                             logger.info(f"Found name field: {field}")
@@ -202,7 +201,7 @@ def process_existing_openAlex_data(directory='openAlex_scraper', max_authors=30,
                 with open(source_path, 'r', encoding='utf-8') as f:
                     ids_data = json.load(f)
                 
-                # Check if this is a dictionary mapping names to IDs
+                # check if this is a dictionary mapping names to ids
                 if isinstance(ids_data, dict):
                     names = list(ids_data.keys())
                     logger.info(f"Found {len(names)} names in {source_path}")
@@ -214,7 +213,7 @@ def process_existing_openAlex_data(directory='openAlex_scraper', max_authors=30,
                             if result:
                                 success_count += 1
                             pbar.update(1)
-                            # Add a small delay to avoid overwhelming the API
+                            # add a small delay to avoid overwhelming the api
                             time.sleep(1)
                     
                     logger.info(f"Completed processing {len(names)} names. {success_count} successful, {len(names) - success_count} failed.")
@@ -226,7 +225,7 @@ def process_existing_openAlex_data(directory='openAlex_scraper', max_authors=30,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Batch process names for disambiguation')
     
-    # Input sources
+    # input sources
     input_group = parser.add_argument_group('Input Sources')
     input_group.add_argument('--names', nargs='+', help='List of names to process')
     input_group.add_argument('--file', type=str, help='Text file containing names (one per line)')
@@ -234,7 +233,7 @@ if __name__ == "__main__":
     input_group.add_argument('--json_field', type=str, default='name', help='Field name containing the name in the JSON file')
     input_group.add_argument('--use_existing', action='store_true', help='Use existing data from the OpenAlex scraper directory')
     
-    # Processing options
+    # processing options
     options_group = parser.add_argument_group('Processing Options')
     options_group.add_argument('--max_authors', type=int, default=30, help='Maximum number of authors to fetch per name')
     options_group.add_argument('--max_works', type=int, default=100, help='Maximum number of works per author')
@@ -242,28 +241,28 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Check if at least one input source is provided
+    # check if at least one input source is provided
     if not (args.names or args.file or args.json or args.use_existing):
         parser.print_help()
         print("\nError: At least one input source must be provided")
         sys.exit(1)
     
-    # Process names from command line
+    # process names from command line
     if args.names:
         logger.info(f"Processing {len(args.names)} names from command line")
         for name in args.names:
             process_single_name(name, args.max_authors, args.max_works, args.verbose)
     
-    # Process names from text file
+    # process names from text file
     if args.file:
         process_from_file(args.file, args.max_authors, args.max_works, args.verbose)
     
-    # Process names from JSON file
+    # process names from json file
     if args.json:
         process_from_json(args.json, args.json_field, args.max_authors, args.max_works, args.verbose)
     
-    # Process existing OpenAlex data
+    # process existing openalex data
     if args.use_existing:
         process_existing_openAlex_data('openAlex_scraper', args.max_authors, args.max_works, args.verbose)
     
-    logger.info("Batch processing complete") 
+    logger.info("Batch processing complete")

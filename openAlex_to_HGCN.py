@@ -8,19 +8,14 @@ from collections import defaultdict
 import sys
 
 def ensure_directory(path):
-    """Ensure that a directory exists."""
+    # ensure directory exists
     os.makedirs(path, exist_ok=True)
 
 def fetch_author_data(author_name, max_results=200):
-    """
-    Fetch author data from OpenAlex API
-    Args:
-        author_name: Name of the author to disambiguate
-        max_results: Maximum number of results to return
-    
-    Returns:
-        dict with author IDs as keys and author data as values
-    """
+    # fetch author data from openalex api
+    # author_name: name of the author to disambiguate
+    # max_results: max number of results to return
+    # returns: dict with author ids as keys and author data as values
     print(f"Fetching author data for {author_name}...")
     cursor = "*"
     authors_data = {}
@@ -40,57 +35,43 @@ def fetch_author_data(author_name, max_results=200):
             
             if not authors:
                 break
-                
-            # Process authors
+
             for author in authors:
                 name = HumanName(author.get("display_name", ""))
                 
-                # Skip if the name doesn't match
+                # skip if name doesnt match
                 first_name = name.first.lower()
                 last_name = name.last.lower()
                 target_name_parts = author_name.lower().split()
-                
-                # Stricter name matching
-                # The query's first name part must match the candidate's first name
-                # The query's last name part must match the candidate's last name
-                # This handles cases where query is "First Last" and candidate is "First Middle Last"
-                
+
                 query_first = ""
-                query_last = "" # Default to empty string
+                query_last = ""
 
                 if len(target_name_parts) > 0:
                     query_first = target_name_parts[0]
-                # Use the last part of the query as the last name component
+
                 if len(target_name_parts) > 1: 
                     query_last = target_name_parts[-1]
-                elif len(target_name_parts) == 1: # If only one name part in query, assume it could be first or last
-                    # If we only have one query part, we can't enforce first AND last match
-                    # For now, let's stick to the logic that if query_last is not set, it's not checked strictly
-                    # This means a query like "Fry" would rely on query_last matching candidate_last_normalized
+                elif len(target_name_parts) == 1: 
                     pass
-
 
                 candidate_first_normalized = name.first.lower()
                 candidate_last_normalized = name.last.lower()
                 
                 match = False
-                if query_first and query_last: # Query like "Terry Fry"
+                if query_first and query_last:
                     if candidate_first_normalized == query_first and candidate_last_normalized == query_last:
                         match = True
-                elif query_first: # Query like "Terry" (and query_last is empty)
+                elif query_first:
                     if candidate_first_normalized == query_first:
-                        # This could be "Terry Smith" for a query "Terry".
-                        # To be stricter for single name queries, one might want to check if candidate_last_normalized is empty or also matches.
-                        # For now, this allows matching on first name if query is just one word.
                         match = True 
-                elif query_last: # Query like "Fry" (and query_first is empty, implies single word query "Fry")
+                elif query_last:
                     if candidate_last_normalized == query_last:
                         match = True
                 
                 if not match:
                     continue
                 
-                # Extract needed data
                 author_id = author["id"].replace("https://openalex.org/", "")
                 authors_data[author_id] = {
                     "id": author_id,
@@ -106,7 +87,7 @@ def fetch_author_data(author_name, max_results=200):
                 if result_count >= max_results:
                     break
             
-            # Update cursor for next page
+            # update cursor for next page
             cursor = data["meta"].get("next_cursor")
             if not cursor:
                 break
@@ -119,9 +100,7 @@ def fetch_author_data(author_name, max_results=200):
     return authors_data
 
 def fetch_works_for_author(author_id, max_works=100):
-    """
-    Fetch works (publications) for a specific author ID from OpenAlex API
-    """
+    # fetch works for a specific author id from openalex api
     print(f"Fetching works for author ID {author_id}...")
     cursor = "*"
     works = []
@@ -143,10 +122,10 @@ def fetch_works_for_author(author_id, max_works=100):
                 break
                 
             for work in batch_works:
-                # Extract needed fields
+                # extract needed fields
                 work_id = work["id"].replace("https://openalex.org/", "")
                 
-                # Get authors
+                # get authors
                 authors = []
                 for authorship in work.get("authorships", []):
                     if "author" in authorship:
@@ -154,21 +133,21 @@ def fetch_works_for_author(author_id, max_works=100):
                         author_id = authorship["author"]["id"].replace("https://openalex.org/", "")
                         authors.append({"name": author_name, "id": author_id})
                 
-                # Get venue
+                # get venue
                 venue_name = ""
                 if "primary_location" in work and work["primary_location"] and "source" in work["primary_location"]:
                     venue_name = work["primary_location"]["source"].get("display_name", "")
                 
-                # Create work entry
+                # create work entry
                 work_entry = {
                     "id": work_id,
-                    "title": work.get("title", ""),  # OpenAlex may return None for title
+                    "title": work.get("title", ""),  # openalex may return none for title
                     "year": work.get("publication_year", 0),
                     "authors": authors,
                     "venue": venue_name
                 }
                 
-                # Ensure title is never None
+                # ensure title is never none
                 if not work_entry["title"]:
                     work_entry["title"] = "Untitled publication"
                 
@@ -178,7 +157,7 @@ def fetch_works_for_author(author_id, max_works=100):
                 if fetched_count >= max_works:
                     break
             
-            # Update cursor for next page
+            # update cursor for next page
             cursor = data["meta"].get("next_cursor")
             if not cursor:
                 break
@@ -191,38 +170,33 @@ def fetch_works_for_author(author_id, max_works=100):
     return works
 
 def create_xml_file(author_name, author_data, works_data, author_id_to_label=None):
-    """
-    Create XML file in the format expected by HGCN name disambiguation
-    """
+    # create xml file in the format expected by hgcn name disambiguation
     print(f"Creating XML file for {author_name}...")
     
-    # Create mapping from author ID to label if not provided
+    # create mapping from author id to label if not provided
     if author_id_to_label is None:
         author_id_to_label = {}
         for i, author_id in enumerate(author_data.keys()):
             author_id_to_label[author_id] = str(i)
     
-    # Helper function to escape XML special characters
+    # helper function to escape xml special characters
     def escape_xml(text):
         if text is None:
             return ""
-        # Replace XML special characters
+        # replace xml special characters
         text = str(text)
         text = text.replace("&", "&amp;")
         text = text.replace("<", "&lt;")
         text = text.replace(">", "&gt;")
         text = text.replace("\"", "&quot;")
         text = text.replace("'", "&apos;")
-        # Remove any control characters that would break XML
         text = ''.join(char for char in text if ord(char) >= 32 or char in '\t\n\r')
         return text
     
-    # Format the XML with proper indentation to match existing files
-    # Create the XML content as a string with manual formatting
     xml_str = '<?xml version="1.0" encoding="utf-8"?>\n'
     xml_str += '<person>\n'
     
-    # Use the first author ID as the personID
+    # use the first author id as the personid
     first_author_id = next(iter(author_data.keys()))
     xml_str += f'\t<personID>{escape_xml(first_author_id)}</personID>\n'
     
@@ -230,50 +204,48 @@ def create_xml_file(author_name, author_data, works_data, author_id_to_label=Non
     xml_str += f'\t<FirstName>{escape_xml(author_name.split()[0])}</FirstName>\n'
     xml_str += f'\t<LastName>{escape_xml(author_name.split()[-1])}</LastName>\n'
     
-    # Track unique works to avoid duplicates
     unique_works = {}
     
-    # Add publications
     for author_id, author in author_data.items():
         for work_id in author["works"]:
             if work_id in works_data and work_id not in unique_works:
                 work = works_data[work_id]
                 unique_works[work_id] = work
                 
-                # Ensure title is never None or empty
+                # ensure title is never none or empty
                 title_text = work["title"] if work["title"] else "Untitled publication"
                 
-                # Add publication element
+                # add publication element
                 xml_str += '\t<publication>\n'
                 xml_str += f'\t\t<title>{escape_xml(title_text)}</title>\n'
                 xml_str += f'\t\t<year>{escape_xml(work["year"])}</year>\n'
                 
-                # Join authors
+                # join authors
                 authors_text = ", ".join([a["name"] for a in work["authors"]])
                 xml_str += f'\t\t<authors>{escape_xml(authors_text)}</authors>\n'
                 
-                # Add venue
+                # add venue
                 venue_text = work["venue"] if work["venue"] else "Unknown"
                 xml_str += f'\t\t<jconf>{escape_xml(venue_text)}</jconf>\n'
                 
-                # Add ID
+                # add id
                 xml_str += f'\t\t<id>{escape_xml(work_id)}</id>\n'
                 
-                # Add label (which author ID this publication belongs to)
-                # We'll map each unique author ID to a unique integer for the label
+                # add label (which author id this publication belongs to)
+                # we'll map each unique author id to a unique integer for the label
                 xml_str += f'\t\t<label>{escape_xml(author_id_to_label.get(author_id, "0"))}</label>\n'
                 
-                # Add organization (use OpenAlex author institution if available, otherwise "null")
+                # add organization (use openalex author institution if available, otherwise "null")
                 xml_str += f'\t\t<organization>{escape_xml("null")}</organization>\n'
                 
                 xml_str += '\t</publication>\n'
     
     xml_str += '</person>'
     
-    # Create directory if it doesn't exist
+    # create directory if it doesn't exist
     ensure_directory("raw-data-temp")
     
-    # Write XML file
+    # write xml file
     file_path = os.path.join("raw-data-temp", f"{author_name}.xml")
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(xml_str)
@@ -282,24 +254,22 @@ def create_xml_file(author_name, author_data, works_data, author_id_to_label=Non
     return unique_works
 
 def create_author_pair_file(author_name, works_data):
-    """
-    Create author pair file in the format expected by HGCN name disambiguation
-    """
+    # create author pair file in the format expected by hgcn name disambiguation
     print(f"Creating author pair file for {author_name}...")
     
-    # Map from publication ID to index
+    # map from publication id to index
     pub_to_idx = {}
     for i, (pub_id, _) in enumerate(works_data.items()):
         pub_to_idx[pub_id] = i
     
-    # Track co-author relationships
+    # track co-author relationships
     co_author_pairs = []
     
-    # For each publication
+    # for each publication
     for pub_id, pub in works_data.items():
         pub_idx = pub_to_idx[pub_id]
         
-        # For each author in the publication
+        # for each author in the publication
         for i in range(len(pub["authors"])):
             for j in range(i+1, len(pub["authors"])):
                 author_i = pub["authors"][i]
@@ -307,10 +277,10 @@ def create_author_pair_file(author_name, works_data):
                 
                 co_author_pairs.append((pub_idx, pub_idx, author_i["name"], author_j["name"]))
     
-    # Create directory if it doesn't exist
+    # create directory if it doesn't exist
     ensure_directory(os.path.join("experimental-results", "authors"))
     
-    # Write author pair file
+    # write author pair file
     file_path = os.path.join("experimental-results", "authors", f"{author_name}_authorlist.txt")
     with open(file_path, 'w', encoding='utf-8') as f:
         for pair in co_author_pairs:
@@ -319,23 +289,21 @@ def create_author_pair_file(author_name, works_data):
     print(f"Author pair file created: {file_path}")
 
 def create_venue_pair_file(author_name, works_data):
-    """
-    Create venue pair file in the format expected by HGCN name disambiguation
-    """
+    # create venue pair file in the format expected by hgcn name disambiguation
     print(f"Creating venue pair file for {author_name}...")
     
-    # Map from publication ID to index
+    # map from publication id to index
     pub_to_idx = {}
     for i, (pub_id, _) in enumerate(works_data.items()):
         pub_to_idx[pub_id] = i
     
-    # Group publications by venue
+    # group publications by venue
     venues = defaultdict(list)
     for pub_id, pub in works_data.items():
         venue = pub["venue"]
         venues[venue].append(pub_id)
     
-    # Create venue pairs
+    # create venue pairs
     venue_pairs = []
     for venue, pubs in venues.items():
         for i in range(len(pubs)):
@@ -346,10 +314,10 @@ def create_venue_pair_file(author_name, works_data):
                 idx_j = pub_to_idx[pub_j]
                 venue_pairs.append((idx_i, idx_j, venue, venue))
     
-    # Create directory if it doesn't exist
+    # create directory if it doesn't exist
     ensure_directory("experimental-results")
     
-    # Write venue pair file
+    # write venue pair file
     file_path = os.path.join("experimental-results", f"{author_name}_jconfpair.txt")
     with open(file_path, 'w', encoding='utf-8') as f:
         for pair in venue_pairs:
@@ -358,7 +326,7 @@ def create_venue_pair_file(author_name, works_data):
     print(f"Venue pair file created: {file_path}")
 
 def save_data_to_json(author_name, author_data, works_data, author_id_to_label):
-    """Save the fetched data to JSON for future use"""
+    # save the fetched data to json for future use
     print(f"Saving data for {author_name} to JSON...")
     
     data = {
@@ -368,10 +336,10 @@ def save_data_to_json(author_name, author_data, works_data, author_id_to_label):
         "author_id_to_label": author_id_to_label
     }
     
-    # Create directory if it doesn't exist
+    # create directory if it doesn't exist
     ensure_directory("cache")
     
-    # Write JSON file
+    # write json file
     file_path = os.path.join("cache", f"{author_name}_data.json")
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
@@ -379,7 +347,7 @@ def save_data_to_json(author_name, author_data, works_data, author_id_to_label):
     print(f"Data saved to: {file_path}")
 
 def load_data_from_json(author_name):
-    """Load data from JSON if available"""
+    # load data from json if available
     file_path = os.path.join("cache", f"{author_name}_data.json")
     
     if os.path.exists(file_path):
@@ -392,10 +360,10 @@ def load_data_from_json(author_name):
     return None, None, None
 
 def fetch_works_only(author_id, author_name, max_works=100):
-    """Function to fetch works only for a specific author ID"""
+    # function to fetch works only for a specific author id
     works = fetch_works_for_author(author_id, max_works)
     
-    # Save to cache
+    # save to cache
     cache_dir = os.path.join("cache", "works")
     ensure_directory(cache_dir)
     
@@ -407,13 +375,13 @@ def fetch_works_only(author_id, author_name, max_works=100):
     return works
 
 def create_files_from_cache(author_name):
-    """Create XML and pair files from cached data"""
-    # Load author data
+    # create xml and pair files from cached data
+    # load author data
     author_data = {}
     works_data = {}
     author_id_to_label = {}
     
-    # Check if we have the main cache file
+    # check if we have the main cache file
     main_cache = os.path.join("cache", f"{author_name}_data.json")
     if os.path.exists(main_cache):
         with open(main_cache, 'r', encoding='utf-8') as f:
@@ -423,7 +391,7 @@ def create_files_from_cache(author_name):
         works_data = data.get("works_data", {})
         author_id_to_label = data["author_id_to_label"]
     
-    # Check for individual works cache files
+    # check for individual works cache files
     works_cache_dir = os.path.join("cache", "works")
     if os.path.exists(works_cache_dir):
         for file in os.listdir(works_cache_dir):
@@ -431,7 +399,7 @@ def create_files_from_cache(author_name):
                 with open(os.path.join(works_cache_dir, file), 'r', encoding='utf-8') as f:
                     author_works = json.load(f)
                 
-                # Add works to the works_data dictionary
+                # add works to the works_data dictionary
                 for work in author_works:
                     works_data[work["id"]] = work
     
@@ -439,7 +407,7 @@ def create_files_from_cache(author_name):
         print(f"No cached data found for {author_name}")
         return False
     
-    # Create files
+    # create files
     unique_works = create_xml_file(author_name, author_data, works_data, author_id_to_label)
     create_author_pair_file(author_name, unique_works)
     create_venue_pair_file(author_name, unique_works)
@@ -453,14 +421,14 @@ if __name__ == "__main__":
     parser.add_argument('--max_works', type=int, default=100, help='Maximum number of works per author')
     parser.add_argument('--use_cache', action='store_true', help='Use cached data if available')
     
-    # New arguments for batch processing
+    # new arguments for batch processing
     parser.add_argument('--fetch_works_only', action='store_true', help='Only fetch works for a specific author ID')
     parser.add_argument('--author_id', type=str, help='Author ID to fetch works for (use with --fetch_works_only)')
     parser.add_argument('--create_files_only', action='store_true', help='Create XML and pair files from cached data')
     
     args = parser.parse_args()
     
-    # Check for required arguments
+    # check for required arguments
     if args.fetch_works_only:
         if not args.author_id or not args.name:
             print("Error: --author_id and --name are required with --fetch_works_only")
@@ -479,11 +447,11 @@ if __name__ == "__main__":
         print("Error: --name is required")
         sys.exit(1)
     
-    # Check for cached data
+    # check for cached data
     if args.use_cache:
         author_data, works_data, author_id_to_label = load_data_from_json(args.name)
         if author_data and works_data and author_id_to_label:
-            # Create files from cached data
+            # create files from cached data
             unique_works = create_xml_file(args.name, author_data, works_data, author_id_to_label)
             create_author_pair_file(args.name, unique_works)
             create_venue_pair_file(args.name, unique_works)
@@ -492,36 +460,36 @@ if __name__ == "__main__":
             print(f"Run name_disambiguation.py to perform disambiguation")
             sys.exit(0)
     
-    # 1. Fetch author data from OpenAlex
+    # 1. fetch author data from openalex
     author_data = fetch_author_data(args.name, args.max_authors)
     
-    # Create mapping from author ID to label (integer)
+    # create mapping from author id to label (integer)
     author_id_to_label = {}
     for i, author_id in enumerate(author_data.keys()):
         author_id_to_label[author_id] = str(i)
     
-    # 2. Fetch works for each author
+    # 2. fetch works for each author
     works_data = {}
     for author_id, author in author_data.items():
         author_works = fetch_works_for_author(author_id, args.max_works)
         author["works"] = [w["id"] for w in author_works]
         
-        # Add works to global works data
+        # add works to global works data
         for work in author_works:
             works_data[work["id"]] = work
     
-    # Save data to JSON for future use
+    # save data to json for future use
     save_data_to_json(args.name, author_data, works_data, author_id_to_label)
     
-    # 3. Create XML file
+    # 3. create xml file
     unique_works = create_xml_file(args.name, author_data, works_data, author_id_to_label)
     
-    # 4. Create author pair file
+    # 4. create author pair file
     create_author_pair_file(args.name, unique_works)
     
-    # 5. Create venue pair file
+    # 5. create venue pair file
     create_venue_pair_file(args.name, unique_works)
     
     print(f"Data extraction and formatting complete for {args.name}")
     print(f"Found {len(author_data)} authors and {len(unique_works)} unique publications")
-    print(f"Run name_disambiguation.py to perform disambiguation") 
+    print(f"Run name_disambiguation.py to perform disambiguation")
